@@ -14,8 +14,8 @@ import (
 type TaskState int
 
 const (
-	WAITING TaskState = iota
-	PROCESSING
+	WAITTING TaskState = iota
+	STARTED
 	FINISHED
 )
 
@@ -53,10 +53,11 @@ type FetchTaskReply struct {
 	ReduceTask *ReduceTask
 }
 
-type TaskFinishArgs struct {
+type TaskFinishedArgs struct {
 	TaskId int
 }
-type TaskFinishReply struct{}
+type TaskFinishedReply struct {
+}
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the coordinator.

@@ -38,14 +38,31 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
+	for {
+		if reply, ok := callFetchTask(); ok {
+			// fmt.Printf("reply %v\n", reply)
+			if reply.Done {
+				return
+			}
+			if reply.MapTask != nil {
+				mapTask(reply.MapTask, mapf)
+			}
+			if reply.ReduceTask != nil {
+				reduceTask(reply.ReduceTask, reducef)
+			}
+		}
+	}
 
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
 
 }
 
-func callFetchTask() {
-
+func callFetchTask() (*FetchTaskReply, bool) {
+	args := FetchTaskArgs{}
+	reply := FetchTaskReply{}
+	ok := call("Coordinator.FetchTask", &args, &reply)
+	return &reply, ok
 }
 
 func mapTask(task *MapTask, mapf func(string, string) []KeyValue) {
@@ -82,7 +99,8 @@ func mapTask(task *MapTask, mapf func(string, string) []KeyValue) {
 			log.Fatal(err)
 		}
 	}
-	// TODO 通知 Coordinator map task 完成
+
+	callMapTaskFinished(task.Id)
 
 }
 
@@ -139,8 +157,22 @@ func reduceTask(task *ReduceTask, reducef func(string, []string) string) {
 		log.Fatal(err)
 	}
 
-	// TODO 通知 Coordinator reduce task 完成
+	callReduceTaskFinished(task.Id)
 
+}
+
+func callMapTaskFinished(taskId int) (*TaskFinishedReply, bool) {
+	args := TaskFinishedArgs{taskId}
+	reply := TaskFinishedReply{}
+	ok := call("Coordinator.MapTaskFinished", &args, &reply)
+	return &reply, ok
+}
+
+func callReduceTaskFinished(taskId int) (*TaskFinishedReply, bool) {
+	args := TaskFinishedArgs{taskId}
+	reply := TaskFinishedReply{}
+	ok := call("Coordinator.ReduceTaskFinished", &args, &reply)
+	return &reply, ok
 }
 
 // example function to show how to make an RPC call to the coordinator.
