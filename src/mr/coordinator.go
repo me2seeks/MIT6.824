@@ -16,8 +16,9 @@ type Coordinator struct {
 	Cond        *sync.Cond
 	MapTasks    []*MapTask
 	ReduceTasks []*ReduceTask
-	MTaskLen    int
-	RtaskLen    int
+
+	MTaskLen int
+	RTaskLen int
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -30,6 +31,7 @@ func (c *Coordinator) FetchTask(args *FetchTaskArgs, reply *FetchTaskReply) erro
 			break
 		} else if task := c.fetchMapTask(); task != nil {
 			reply.MapTask = task
+			log.Printf("分配 map task %d", task.Id)
 			c.mapTaskStarted(task)
 			return nil
 		} else {
@@ -42,6 +44,7 @@ func (c *Coordinator) FetchTask(args *FetchTaskArgs, reply *FetchTaskReply) erro
 			break
 		} else if task := c.fetchReduceTask(); task != nil {
 			reply.ReduceTask = task
+			log.Printf("分配 reduce task %d", task.Id)
 			c.reduceTaskStarted(task)
 			return nil
 
@@ -79,11 +82,8 @@ func (c *Coordinator) mapTaskStarted(task *MapTask) {
 		c.Mutex.Lock()
 		defer c.Mutex.Unlock()
 		if task.State != FINISHED {
-			log.Printf("recover map task %d \n MTaskLen: %d", task.Id, c.MTaskLen)
+			log.Printf("recover map task %d", task.Id)
 			task.State = WAITTING
-			c.MTaskLen++
-			log.Printf("MTaskLen: %d", c.MTaskLen)
-
 			c.Cond.Broadcast()
 		}
 	}(task)
@@ -99,7 +99,6 @@ func (c *Coordinator) reduceTaskStarted(task *ReduceTask) {
 		if task.State != FINISHED {
 			log.Printf("recover map task %d \n", task.Id)
 			task.State = WAITTING
-			c.RtaskLen++
 			c.Cond.Broadcast()
 		}
 	}(task)
@@ -110,6 +109,7 @@ func (c *Coordinator) MapTaskFinished(args *TaskFinishedArgs, reply *TaskFinishe
 	defer c.Mutex.Unlock()
 	c.MapTasks[args.TaskId].State = FINISHED
 	c.MTaskLen--
+	log.Printf("完成 map id :%d", args.TaskId)
 	if c.MapTasksDone() {
 		c.Cond.Broadcast()
 	}
@@ -120,7 +120,8 @@ func (c *Coordinator) ReduceTaskFinished(args *TaskFinishedArgs, reply *TaskFini
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 	c.ReduceTasks[args.TaskId].State = FINISHED
-	c.RtaskLen--
+	c.RTaskLen--
+	log.Printf("完成 reduce id :%d", args.TaskId)
 	if c.Done() {
 		c.Cond.Broadcast()
 	}
@@ -152,7 +153,7 @@ func (c *Coordinator) server() {
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
 func (c *Coordinator) Done() bool {
-	return c.RtaskLen == 0
+	return c.RTaskLen == 0
 }
 
 func (c *Coordinator) MapTasksDone() bool {
@@ -164,7 +165,7 @@ func (c *Coordinator) MapTasksDone() bool {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
-		RtaskLen: nReduce,
+		RTaskLen: nReduce,
 		MTaskLen: len(files),
 	}
 
